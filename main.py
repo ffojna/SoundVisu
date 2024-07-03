@@ -52,10 +52,12 @@ NOTE_IMAGES = {
 
 # general settings
 SAMPLE_FREQ = 44100                         # sample frequency in Hz
-WINDOW_SIZE = 2048                         # window size of the DFT in samples
-WINDOW_STEP = 1024                         # step size of window
+WINDOW_SIZE = 4096                         # window size of the DFT in samples
+WINDOW_STEP = 2048                         # step size of window
 WINDOW_T_LEN = WINDOW_SIZE / SAMPLE_FREQ    # length of window in seconds
 SAMPLE_T_LENGTH = 1 / SAMPLE_FREQ           # length between two samples in seconds (to też ze wzoru)
+NOISE_GATE_THRESHOLD = 0.05
+NUM_OF_SAMLPES_AVG = 6
 windowSamples = np.zeros(WINDOW_SIZE)
 closestNote = ''
 SAMPLE_DUR = 2      # sample length in seconds (tylko do testowania sounddevice)
@@ -75,6 +77,9 @@ def update_image(img_path):
     new_display = ImageTk.PhotoImage(new_image)
     label.config(image=new_display)
     label.image = new_display
+    noteName.config(text=img_path)
+
+recent_freqs = []
 
 def callback(indata, frames, time, status):
     global windowSamples, closestNote
@@ -89,16 +94,32 @@ def callback(indata, frames, time, status):
         
         maxInd = np.argmax(magnitudeSpec)
         maxFreq = maxInd * (SAMPLE_FREQ / WINDOW_SIZE)
-        new_closestNote, closestPitch = find_closest_note(maxFreq)
+        # new_closestNote, closestPitch = find_closest_note(maxFreq)
+        
+        recent_freqs.append(maxFreq)
+        if len(recent_freqs) > NUM_OF_SAMLPES_AVG:
+            recent_freqs.pop(0)
+            
+        # avgFreq = np.mean(recent_freqs)   # po średniej
+        avgFreq = max(set(recent_freqs), key=recent_freqs.count)
+        new_closestNote, closestPitch = find_closest_note(avgFreq)
+        
+        # noise gate
+        if magnitudeSpec[maxInd] < NOISE_GATE_THRESHOLD:
+            return
         
         if new_closestNote != closestNote:
             closestNote = new_closestNote
             os.system('cls' if os.name=='nt' else 'clear')
             diffPitch = maxFreq - closestPitch
             print(f"Closest note: {closestNote} {diffPitch:.1f}")
+            print(recent_freqs)
+            print(avgFreq)
             if closestNote in NOTE_IMAGES:
                 img_path = NOTE_IMAGES[closestNote]
                 update_image(img_path)
+                
+                
     else:
         print("no input")
 
@@ -113,12 +134,15 @@ keyboard.add_hotkey('esc', stop_loop)
 
 # main program
 root = tk.Tk()
-root.title("SoundVisu v1.5")
+root.title("SoundVisu v1.8")
 
 image = Image.open("images/init.png")
 display = ImageTk.PhotoImage(image)
 label = tk.Label(root, image=display)
 label.pack()
+
+noteName = tk.Label(root, text="ready")
+noteName.pack()
 
 def start_audio_stream():
     try:
