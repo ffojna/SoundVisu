@@ -52,8 +52,8 @@ NOTE_IMAGES = {
 
 # general settings
 SAMPLE_FREQ = 44100                         # sample frequency in Hz
-WINDOW_SIZE = 44100                         # window size of the DFT in samples
-WINDOW_STEP = 21050                         # step size of window
+WINDOW_SIZE = 2048                         # window size of the DFT in samples
+WINDOW_STEP = 1024                         # step size of window
 WINDOW_T_LEN = WINDOW_SIZE / SAMPLE_FREQ    # length of window in seconds
 SAMPLE_T_LENGTH = 1 / SAMPLE_FREQ           # length between two samples in seconds (to też ze wzoru)
 windowSamples = np.zeros(WINDOW_SIZE)
@@ -65,7 +65,7 @@ CONCERT_PITCH = 440
 ALL_NOTES = ["A","A#","B","C","C#","D","D#","E","F","F#","G","G#"]
 def find_closest_note(pitch):
     i = int(np.round(np.log2(pitch/CONCERT_PITCH) * 12))
-    closest_note = ALL_NOTES[i%12] + str(4 + (i + 9) // 12) # ze wzoru na i
+    closest_note = ALL_NOTES[i % 12] + str(4 + (i + 9) // 12) # ze wzoru na i
     closest_pitch = CONCERT_PITCH*2**(i/12)                 # ze wzoru na f(i)
     return closest_note, closest_pitch
 
