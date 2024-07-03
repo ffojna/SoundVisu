@@ -12,7 +12,8 @@ NOTE_IMAGES = {
     "E2": "images/E2.png",
     "G2": "images/G2.png",
     "A2": "images/A2.png",
-    "D3": "images/D3.png"
+    "D3": "images/D3.png",
+    "A4": "images/A4.png"
 }
 
 # general settings
