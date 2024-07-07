@@ -58,11 +58,15 @@ WINDOW_STEP = int(WINDOW_SIZE / 2)          # step size of window
 WINDOW_T_LEN = WINDOW_SIZE / SAMPLE_FREQ    # length of window in seconds
 SAMPLE_T_LENGTH = 1 / SAMPLE_FREQ           # length between two samples in seconds (to też ze wzoru)
 DEFAULT_NOISE_GATE_THRESHOLD = 0.05
-DEFAULT_NUM_OF_SAMLPES = 6
+DEFAULT_NUM_OF_SAMLPES = 4
+DEFAULT_BASS_THRESHOLD = 334                # frequencies bellow which are considered as bass frequencies
+DEFAULT_BASS_REDUCTION = -6
 
 # setting up variables
 num_of_samples = DEFAULT_NUM_OF_SAMLPES
 noise_gate = DEFAULT_NOISE_GATE_THRESHOLD
+bass_threshold = DEFAULT_BASS_THRESHOLD
+bass_reduction = DEFAULT_BASS_REDUCTION
 windowSamples = np.zeros(WINDOW_SIZE)
 closestNote = ''
 
@@ -92,6 +96,11 @@ def image_callback(indata, frames, time, status):
         windowSamples = np.roll(windowSamples, -frames)
         windowSamples[-frames:] = indata[:, 0]
         magnitudeSpec = abs(scipy.fftpack.fft(windowSamples)[:len(windowSamples)//2])
+        
+        # obniżam basowe o 3 dB
+        # po analizie zauważyłem, że przy mieszaniu dźwięków te dominują nad sopranami i przy melodiach się gubią
+        freq_bin_bass = int(bass_threshold / (SAMPLE_FREQ / WINDOW_SIZE))
+        magnitudeSpec[:freq_bin_bass] *= 10 ** (bass_reduction / 20)
         
         magnitudeSpec[:int(62 / (SAMPLE_FREQ / WINDOW_SIZE))] = 0
         
@@ -166,8 +175,38 @@ def check_noise_gate():
         
     print(f"Noise Gate threshold:\t{noise_gate}")
     
+def check_bass_threshold():
+    global bass_threshold
+    entry_content = bass_threshold_entry.get()
+    if entry_content.strip() != "":
+        try:
+            value = float(entry_content)
+            if value >= 0:
+                bass_threshold = value
+            else:
+                raise ValueError("Negative value")
+        except ValueError:
+            messagebox.showerror("Invalid Input", "Bass Threshold\nPlease enter a positive float.")
+    else:
+        bass_threshold = DEFAULT_BASS_THRESHOLD
+        
+    print(f"Bass threshold:\t{bass_threshold}")
+    
+def check_bass_reduction():
+    global bass_reduction
+    entry_content = bass_reduction_entry.get()
+    if entry_content.strip() != "":
+        try:
+            value = float(entry_content)
+        except ValueError:
+            messagebox.showerror("Invalid Input", "Bass reduction\nPlease enter a float.")
+    else:
+        bass_reduction = DEFAULT_BASS_REDUCTION
+        
+    print(f"Bass reduction:\t{bass_reduction}")
+    
 def start_apploop():
-    global audio_thread, welcome_label, num_of_samples_label, num_of_samples_spinbox, noise_gate_label, noise_gate_entry, custom_checkbox, start_button, tuner_button
+    global audio_thread, welcome_label, num_of_samples_label, num_of_samples_spinbox, noise_gate_label, noise_gate_entry, custom_checkbox, start_button, tuner_button, bass_threshold_label, bass_threshold_entry, bass_reduction_label, bass_reduction_entry
     print("Values:")
     check_num_of_samples()
     if noise_gate_active.get():
@@ -175,6 +214,8 @@ def start_apploop():
         check_noise_gate()
     else:
         print("Noise gate is turned off.")
+    check_bass_threshold()
+    check_bass_reduction()
     
     # destroing all widgets
     welcome_label.destroy()
@@ -185,6 +226,10 @@ def start_apploop():
     noise_gate_entry.destroy()
     tuner_button.destroy()
     start_button.destroy()
+    bass_threshold_label.destroy()
+    bass_threshold_entry.destroy()
+    bass_reduction_label.destroy()
+    bass_reduction_entry.destroy()
     
     time.sleep(3)
     
@@ -207,9 +252,9 @@ label.grid(row=0, column=0, columnspan=3, sticky='news')
 #root.geometry("1920x1050")
 
 # main menu
-semibold_rubik = font.Font(family="Rubik", size=14, weight="bold")
+bold_rubik = font.Font(family="Rubik", size=14, weight="bold")
 
-welcome_label = tk.Label(root, text="Welcome to SoundVisu!", bg='#333333', font=semibold_rubik, fg='#FFFFFF')
+welcome_label = tk.Label(root, text="Welcome to SoundVisu!", bg='#333333', font=bold_rubik, fg='#FFFFFF')
 
 num_of_samples_label = tk.Label(root, text="Number of samples:", bg='#333333', font=("Rubik", 14), fg='#FFFFFF')
 defualt_numsamples = tk.StringVar(root)
@@ -221,9 +266,14 @@ custom_checkbox = CustomCheckbox(root, variable=noise_gate_active, onvalue=True,
 noise_gate_label = tk.Label(root, text="Noise gate threshold:", bg='#333333', font=("Rubik", 14), fg='#FFFFFF')
 noise_gate_entry = tk.Entry(root)
 
+bass_threshold_label = tk.Label(root, text="Frequency of highest bass:", bg='#333333', font=("Rubik", 14), fg='#FFFFFF')
+bass_threshold_entry = tk.Entry(root)
+
+bass_reduction_label = tk.Label(root, text="Bass reduction (in dB):", bg='#333333', font=("Rubik", 14), fg='#FFFFFF')
+bass_reduction_entry = tk.Entry(root)
+
 start_button_image = ImageTk.PhotoImage(Image.open("images/bStart.png"))
 start_button = tk.Button(root, image=start_button_image, bg='#333333', fg='#FFFFFF', command=start_apploop)
-# TODO
 
 tuner_button_image = ImageTk.PhotoImage(Image.open("images/bTuner.png"))
 tuner_button = tk.Button(root, image=tuner_button_image, bg='#333333', fg='#FFFFFF')
@@ -236,8 +286,12 @@ num_of_samples_spinbox.grid(row=2, column=2, padx=20)
 custom_checkbox.grid(row=3, column=0, padx=20)
 noise_gate_label.grid(row=3, column=1, padx=20)
 noise_gate_entry.grid(row=3, column=2, padx=20)
-start_button.grid(row=4, column=2, pady=20)
-tuner_button.grid(row=4, column=1)
+bass_threshold_label.grid(row=4, column=1, padx=20)
+bass_threshold_entry.grid(row=4, column=2, padx=20)
+bass_reduction_label.grid(row=5, column=1, padx=20,)
+bass_reduction_entry.grid(row=5, column=2, padx=20)
+start_button.grid(row=6, column=2, pady=20)
+tuner_button.grid(row=6, column=1)
 
 
 def start_audio_stream():
