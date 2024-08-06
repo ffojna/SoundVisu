@@ -2,10 +2,12 @@ import sounddevice as sd
 import scipy.io.wavfile
 import numpy as np
 import scipy.fftpack
-import os, keyboard
+import os, keyboard, time
 from PIL import Image, ImageTk
 import tkinter as tk
+from tkinter import messagebox, font
 import threading
+from CustomCheckbox import CustomCheckbox
 
 
 # paths to images (mapujesz tutaj odpowiednie obrazy (ścieżki) do dźwięków)
@@ -49,22 +51,25 @@ NOTE_IMAGES = {
     "E5": "images/E5.png"
 }
 
-
 # general settings
 SAMPLE_FREQ = 44100                         # sample frequency in Hz
-WINDOW_SIZE = 4096                         # window size of the DFT in samples
-WINDOW_STEP = 2048                         # step size of window
+WINDOW_SIZE = 4096                          # window size of the DFT in samples
+WINDOW_STEP = int(WINDOW_SIZE / 2)          # step size of window
 WINDOW_T_LEN = WINDOW_SIZE / SAMPLE_FREQ    # length of window in seconds
 SAMPLE_T_LENGTH = 1 / SAMPLE_FREQ           # length between two samples in seconds (to też ze wzoru)
-NOISE_GATE_THRESHOLD = 0.05
-NUM_OF_SAMLPES_AVG = 6
+DEFAULT_NOISE_GATE_THRESHOLD = 0.05
+DEFAULT_NUM_OF_SAMLPES = 4
+
+# setting up variables
+num_of_samples = DEFAULT_NUM_OF_SAMLPES
+noise_gate = DEFAULT_NOISE_GATE_THRESHOLD
 windowSamples = np.zeros(WINDOW_SIZE)
 closestNote = ''
-SAMPLE_DUR = 2      # sample length in seconds (tylko do testowania sounddevice)
 
 # funciton to find closest note for given pitch
 CONCERT_PITCH = 440
 ALL_NOTES = ["A","A#","B","C","C#","D","D#","E","F","F#","G","G#"]
+
 def find_closest_note(pitch):
     i = int(np.round(np.log2(pitch/CONCERT_PITCH) * 12))
     closest_note = ALL_NOTES[i % 12] + str(4 + (i + 9) // 12) # ze wzoru na i
@@ -77,11 +82,9 @@ def update_image(img_path):
     new_display = ImageTk.PhotoImage(new_image)
     label.config(image=new_display)
     label.image = new_display
-    noteName.config(text=img_path)
 
 recent_freqs = []
-
-def callback(indata, frames, time, status):
+def image_callback(indata, frames, time, status):
     global windowSamples, closestNote
     if status:
         print(status)
@@ -97,7 +100,7 @@ def callback(indata, frames, time, status):
         # new_closestNote, closestPitch = find_closest_note(maxFreq)
         
         recent_freqs.append(maxFreq)
-        if len(recent_freqs) > NUM_OF_SAMLPES_AVG:
+        if len(recent_freqs) > num_of_samples:
             recent_freqs.pop(0)
             
         # avgFreq = np.mean(recent_freqs)   # po średniej
@@ -105,8 +108,9 @@ def callback(indata, frames, time, status):
         new_closestNote, closestPitch = find_closest_note(avgFreq)
         
         # noise gate
-        if magnitudeSpec[maxInd] < NOISE_GATE_THRESHOLD:
-            return
+        if noise_gate_active.get():
+            if magnitudeSpec[maxInd] < noise_gate:
+                return
         
         if new_closestNote != closestNote:
             closestNote = new_closestNote
@@ -132,34 +136,124 @@ def stop_loop():
     on_closing()
 keyboard.add_hotkey('esc', stop_loop)
 
-# main program
-root = tk.Tk()
-root.title("SoundVisu v1.8")
+def check_num_of_samples():
+    global num_of_samples
+    entry_content = num_of_samples_spinbox.get()
+    if entry_content.strip() != "":
+        try:
+            num_of_samples = int(entry_content)
+        except ValueError:
+            messagebox.showerror("Invalid Input", "Number of samples\nPlease enter a positive integer.")
+    else:
+        num_of_samples = DEFAULT_NUM_OF_SAMLPES
+        
+    print(f"Number of samples:\t{num_of_samples}")
+    
+def check_noise_gate():
+    global noise_gate
+    entry_content = noise_gate_entry.get()
+    if entry_content.strip() != "":
+        try:
+            noise_gate_value = float(entry_content)
+            if noise_gate_value >= 0:
+                noise_gate = noise_gate_value
+            else:
+                raise ValueError("Negative value")
+        except ValueError:
+            messagebox.showerror("Invalid Input", "Noise Gate Threshold\nPlease enter a positive float.")
+    else:
+        noise_gate = DEFAULT_NOISE_GATE_THRESHOLD
+        
+    print(f"Noise Gate threshold:\t{noise_gate}")
+    
+def start_apploop():
+    global audio_thread, welcome_label, num_of_samples_label, num_of_samples_spinbox, noise_gate_label, noise_gate_entry, custom_checkbox, start_button, tuner_button
+    print("Values:")
+    check_num_of_samples()
+    if noise_gate_active.get():
+        print("Using noise gate:")
+        check_noise_gate()
+    else:
+        print("Noise gate is turned off.")
+    
+    # destroing all widgets
+    welcome_label.destroy()
+    num_of_samples_label.destroy()
+    num_of_samples_spinbox.destroy()
+    custom_checkbox.destroy()
+    noise_gate_label.destroy()
+    noise_gate_entry.destroy()
+    tuner_button.destroy()
+    start_button.destroy()
+    
+    time.sleep(3)
+    
+    audio_thread = threading.Thread(target=start_audio_stream)
+    audio_thread.start()
 
+def start_tunerloop():
+    pass
+
+root = tk.Tk()
+root.title("SoundVisu v2.0")
+root.configure(bg='#333333')
+
+image_frame = tk.Frame(root, bg='#333333')
+image_frame.grid(row=0, column=0, columnspan=2, sticky='n')
 image = Image.open("images/init.png")
 display = ImageTk.PhotoImage(image)
-label = tk.Label(root, image=display)
-label.pack()
+label = tk.Label(image_frame, image=display, bg='#333333')
+label.grid(row=0, column=0, columnspan=3, sticky='news')
+#root.geometry("1920x1050")
 
-noteName = tk.Label(root, text="ready")
-noteName.pack()
+# main menu
+semibold_rubik = font.Font(family="Rubik", size=14, weight="bold")
+
+welcome_label = tk.Label(root, text="Welcome to SoundVisu!", bg='#333333', font=semibold_rubik, fg='#FFFFFF')
+
+num_of_samples_label = tk.Label(root, text="Number of samples:", bg='#333333', font=("Rubik", 14), fg='#FFFFFF')
+defualt_numsamples = tk.StringVar(root)
+defualt_numsamples.set(str(DEFAULT_NUM_OF_SAMLPES))
+num_of_samples_spinbox = tk.Spinbox(root, from_=1, to=100, textvariable=defualt_numsamples)
+
+noise_gate_active = tk.BooleanVar()
+custom_checkbox = CustomCheckbox(root, variable=noise_gate_active, onvalue=True, offvalue=False)
+noise_gate_label = tk.Label(root, text="Noise gate threshold:", bg='#333333', font=("Rubik", 14), fg='#FFFFFF')
+noise_gate_entry = tk.Entry(root)
+
+start_button_image = ImageTk.PhotoImage(Image.open("images/bStart.png"))
+start_button = tk.Button(root, image=start_button_image, bg='#333333', fg='#FFFFFF', command=start_apploop)
+# TODO
+
+tuner_button_image = ImageTk.PhotoImage(Image.open("images/bTuner.png"))
+tuner_button = tk.Button(root, image=tuner_button_image, bg='#333333', fg='#FFFFFF')
+
+# TODO device select button
+
+welcome_label.grid(row=1, column=0, columnspan=3)
+num_of_samples_label.grid(row=2, column=1, padx=20)
+num_of_samples_spinbox.grid(row=2, column=2, padx=20)
+custom_checkbox.grid(row=3, column=0, padx=20)
+noise_gate_label.grid(row=3, column=1, padx=20)
+noise_gate_entry.grid(row=3, column=2, padx=20)
+start_button.grid(row=4, column=2, pady=20)
+tuner_button.grid(row=4, column=1)
+
 
 def start_audio_stream():
     try:
-        with sd.InputStream(channels=1, callback=callback, blocksize=WINDOW_STEP, samplerate=SAMPLE_FREQ):
+        with sd.InputStream(channels=1, callback=image_callback, blocksize=WINDOW_STEP, samplerate=SAMPLE_FREQ):
             while running:
                 root.update_idletasks()
                 root.update()
     except Exception as e:
         print(str(e))
 
-audio_thread = threading.Thread(target=start_audio_stream)
-audio_thread.start()
-
 def on_closing():
     global running
     running = False
     root.destroy()
+
 
 # closing window
 root.protocol("WM_DELETE_WINDOW", on_closing)
