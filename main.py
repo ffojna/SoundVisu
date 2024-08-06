@@ -58,7 +58,7 @@ WINDOW_STEP = int(WINDOW_SIZE / 2)          # step size of window
 WINDOW_T_LEN = WINDOW_SIZE / SAMPLE_FREQ    # length of window in seconds
 SAMPLE_T_LENGTH = 1 / SAMPLE_FREQ           # length between two samples in seconds (to też ze wzoru)
 DEFAULT_NOISE_GATE_THRESHOLD = 0.05
-DEFAULT_NUM_OF_SAMLPES = 6
+DEFAULT_NUM_OF_SAMLPES = 4
 
 # setting up variables
 num_of_samples = DEFAULT_NUM_OF_SAMLPES
