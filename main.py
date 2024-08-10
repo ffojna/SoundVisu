@@ -126,6 +126,55 @@ def image_callback(indata, frames, time, status):
                 
     else:
         print("no input")
+        
+def raw_callback(indata, frames, time, status):
+    global windowSamples, closestNote
+    if status:
+        print(status)
+    if any(indata):
+        audio_data = np.frombuffer(indata, dtype=np.uint8).astype(np.int32)
+        audio_data = (audio_data[0::3] << 16 | audio_data[1::3] << 8) | audio_data[2::3]
+        audio_data[audio_data >= 2**23] -= 2**24
+        audio_data = audio_data.astype(np.float32)
+        audio_data /= 2**23
+        
+        windowSamples = np.roll(windowSamples, -frames)
+        windowSamples[-frames:] = audio_data
+        magnitudeSpec = abs(scipy.fftpack.fft(windowSamples)[:len(windowSamples)//2])
+        
+        magnitudeSpec[:int(62 / (SAMPLE_FREQ / WINDOW_SIZE))] = 0
+        
+        maxInd = np.argmax(magnitudeSpec)
+        maxFreq = maxInd * (SAMPLE_FREQ / WINDOW_SIZE)
+        # new_closestNote, closestPitch = find_closest_note(maxFreq)
+        
+        recent_freqs.append(maxFreq)
+        if len(recent_freqs) > num_of_samples:
+            recent_freqs.pop(0)
+            
+        # avgFreq = np.mean(recent_freqs)   # po średniej
+        avgFreq = max(set(recent_freqs), key=recent_freqs.count)
+        new_closestNote, closestPitch = find_closest_note(avgFreq)
+        
+        # noise gate
+        if noise_gate_active.get():
+            if magnitudeSpec[maxInd] < noise_gate:
+                return
+        
+        if new_closestNote != closestNote:
+            closestNote = new_closestNote
+            os.system('cls' if os.name=='nt' else 'clear')
+            diffPitch = maxFreq - closestPitch
+            print(f"Closest note: {closestNote} {diffPitch:.1f}")
+            print(recent_freqs)
+            print(avgFreq)
+            if closestNote in NOTE_IMAGES:
+                img_path = NOTE_IMAGES[closestNote]
+                update_image(img_path)
+                
+                
+    else:
+        print("no input")
 
 # stop the program button
 running = True
@@ -240,9 +289,20 @@ start_button.grid(row=4, column=2, pady=20)
 tuner_button.grid(row=4, column=1)
 
 
+# TODO  pomyśl nad raw streamem https://python-sounddevice.readthedocs.io/en/0.4.7/usage.html#callback-streams
+
+# def start_audio_stream():
+#     try:
+#         with sd.InputStream(channels=1, callback=image_callback, blocksize=WINDOW_STEP, samplerate=SAMPLE_FREQ):
+#             while running:
+#                 root.update_idletasks()
+#                 root.update()
+#     except Exception as e:
+#         print(str(e))
+
 def start_audio_stream():
     try:
-        with sd.InputStream(channels=1, callback=image_callback, blocksize=WINDOW_STEP, samplerate=SAMPLE_FREQ):
+        with sd.RawInputStream(channels=1, dtype='int24', callback=raw_callback, blocksize=WINDOW_STEP, samplerate=SAMPLE_FREQ):
             while running:
                 root.update_idletasks()
                 root.update()
