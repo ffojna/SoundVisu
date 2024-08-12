@@ -291,23 +291,23 @@ tuner_button.grid(row=4, column=1)
 
 # TODO  pomyśl nad raw streamem https://python-sounddevice.readthedocs.io/en/0.4.7/usage.html#callback-streams
 
-# def start_audio_stream():
-#     try:
-#         with sd.InputStream(channels=1, callback=image_callback, blocksize=WINDOW_STEP, samplerate=SAMPLE_FREQ):
-#             while running:
-#                 root.update_idletasks()
-#                 root.update()
-#     except Exception as e:
-#         print(str(e))
-
 def start_audio_stream():
     try:
-        with sd.RawInputStream(channels=1, dtype='int24', callback=raw_callback, blocksize=WINDOW_STEP, samplerate=SAMPLE_FREQ):
+        with sd.InputStream(channels=1, callback=image_callback, blocksize=WINDOW_STEP, samplerate=SAMPLE_FREQ):
             while running:
                 root.update_idletasks()
                 root.update()
     except Exception as e:
         print(str(e))
+
+# def start_audio_stream():
+#     try:
+#         with sd.RawInputStream(channels=1, dtype='int24', callback=raw_callback, blocksize=WINDOW_STEP, samplerate=SAMPLE_FREQ):
+#             while running:
+#                 root.update_idletasks()
+#                 root.update()
+#     except Exception as e:
+#         print(str(e))
 
 def on_closing():
     global running
